@@ -114,7 +114,7 @@ class DataSet(object):
                 self._file_id = 0
                 if self._random:
                     random.shuffle(self._idfs)
-
+            # print(self._filename_h[self._idfs[self._file_id]])
             #read images
             image_high = np.array(np.load(self._filename_h[self._idfs[self._file_id]]))
             image_low = np.array(np.load(self._filename_l[self._idfs[self._file_id]]))
@@ -149,7 +149,7 @@ class DataSet(object):
                                                  self._strides,
                                                  self._max_patch_image,
                                                  True):
-            patch[patch < 0] = 0
+            #patch[patch < 0] = 0
             patch_high = patch[0, :, :, 0]
             patch_low = patch[1, :, :, 0]
 
@@ -174,10 +174,14 @@ class DataSet(object):
         high_res_buffer = []
         low_res_buffer = []
         tensor_high, tensor_low = self.read_next_file()
-        n_patch = tensor_high.shape[0]
-        for i in xrange(n_patch):
-            high_res_buffer.append(tensor_high[i, :, :, 0])
-            low_res_buffer.append(tensor_low[i, :, :, 0])
+        if tensor_high.shape[1] == self._patch_shape[0] and tensor_high.shape[2] == self._patch_shape[1]:
+            n_patch = tensor_high.shape[0]
+            for i in xrange(n_patch):
+                high_res_buffer.append(tensor_high[i, :, :, 0])
+                low_res_buffer.append(tensor_low[i, :, :, 0])
+        else:
+            pass
+            
 
     def refill_buffer(self):
         self._buffer_id = 0
@@ -186,7 +190,7 @@ class DataSet(object):
         else:
             high_buffer, low_buffer = self.fill_buffer_by_read()
         self._high_res_buffer = high_buffer
-        self._low_res_buffer = low_buffer 
+        self._low_res_buffer = low_buffer
 
         self._idps = list(xrange(len(self._low_res_buffer)))
         random.shuffle(self._idps)

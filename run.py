@@ -14,13 +14,13 @@ import mypylib.tensor as mplt
 
 FLAGS = tf.app.flags.FLAGS
 
-USE_FLICKR_DATA = True
+USE_FLICKR_DATA = False
 if USE_FLICKR_DATA:
     DATA_PATH = "/home/hongxwing/Workspace/Datas/flickr25k_gray_npy/"
 else:
     DATA_PATH = "/home/hongxwing/Workspace/Datas/SinogramData/"
 
-TEST_NAME = "crop_test_flickr"
+TEST_NAME = "crop_test_deep_conv_sino"
 
 # CROPP_FILE = False
 # if CROPP_FILE:
@@ -28,10 +28,10 @@ TEST_NAME = "crop_test_flickr"
 # else:
 #     DATA_PATH = ""
 
-BATCH_SIZE = 256
-PATCH_SHAPE = [41, 41]
+BATCH_SIZE = 128
+PATCH_SHAPE = [61, 61]
 STRIDE = [8, 8]
-CONV_STEP = 6
+CONV_STEP = 12
 VALID_OFFSET = [CONV_STEP, CONV_STEP]
 VALID_SHAPE = [PATCH_SHAPE[0]-2*CONV_STEP, PATCH_SHAPE[1]-2*CONV_STEP]
 
@@ -49,6 +49,14 @@ else:
 
 TRAIN_IDS = list(xrange(NTRAIN))
 TEST_IDS = list(xrange(NTRAIN, NTRAIN+NTEST))
+if USE_FLICKR_DATA:
+    TRAIN_IDS.remove(1008)
+    TRAIN_IDS.remove(5123)
+    TRAIN_IDS.remove(5951)
+    TRAIN_IDS.remove(9446)
+    TRAIN_IDS.remove(10570)
+    TRAIN_IDS.remove(13856)
+    TRAIN_IDS.remove(15456)
 
 def define_flags():
     """
@@ -88,13 +96,13 @@ def define_flags():
     flag.DEFINE_integer("output_conv_height", 3, "Convolution window height of output layer.")
     flag.DEFINE_integer("output_conv_width", 3, "Convolution window width of output layer.")
     flag.DEFINE_float("stddev", 2e-2, "Default std dev of weight variable.")
-    flag.DEFINE_float("learning_rate_init", 1e-3, "Initial learning rate.")
+    flag.DEFINE_float("learning_rate_init", 1e-4, "Initial learning rate.")
     flag.DEFINE_float("learning_rate_decay_factor", 0.6, "Learning rate decay factor.")
 
     flag.DEFINE_integer("decay_epoch", 1, "Decay epoch.")
-    flag.DEFINE_integer("decay_steps", 300, "Decay steps.")
+    flag.DEFINE_integer("decay_steps", 1000, "Decay steps.")
 
-    flag.DEFINE_integer("max_step", 1000, "Max train steps.")
+    flag.DEFINE_integer("max_step", 5000, "Max train steps.")
     flag.DEFINE_integer("max_test_step", 5, "Max train steps.")
 
 define_flags()
@@ -167,7 +175,7 @@ def train_net(net, sess, summary, summary_writer, saver, id_list_in):
             summary_writer.add_summary(summary_v, i)
         if i%50 == 0 and i > 0:
             test_net(net, sess, TEST_IDS)
-        if i%1000 == 0 and i > 0:
+        if i%500 == 0 and i > 0:
             saver.save(sess, 'supernet-'+TEST_NAME, global_step=i)
     summary_writer.add_summary(summary_v, FLAGS.max_step)
     test_net(net, sess, TEST_IDS)
@@ -203,7 +211,7 @@ def infer(net, sess, image_l):
 
         for i in xrange(high_resolution_image.shape[0]):
             patch = high_resolution_image[i, :, :, 0]
-            patch = np.reshape(patch, [1, FLAGS.height, FLAGS.width, 1])
+            patch = np.reshape(patch, [1, FLAGS.valid_h, FLAGS.valid_w, 1])
             high_resolution_list.append(patch)
         idt += FLAGS.batch_size
 
@@ -219,23 +227,32 @@ def infer(net, sess, image_l):
                                                     net.residual: tensor_res})
         for i in xrange(tensor_raw.shape[0]):
             patch = high_resolution_image[i, :, :, 0]
-            patch = np.reshape(patch, [1, FLAGS.height, FLAGS.width, 1])
+            patch = np.reshape(patch, [1, FLAGS.valid_h, FLAGS.valid_w, 1])
             high_resolution_list.append(patch)
 
+    high_resolution_list_correct = []
+    for patch in high_resolution_list:
+        patch_padding = np.zeros([1, FLAGS.height, FLAGS.width, 1])
+        patch_padding[0,
+                      FLAGS.valid_h:FLAGS.valid_h+FLAGS.valid_y,
+                      FLAGS.valid_w:FLAGS.valid_w+FLAGS.valid_x,
+                      0] = patch[0, :FLAGS.valid_y, FLAGS.valid_x, 0]
+        high_resolution_list_correct.append(patch_padding)
 
     image_h = mpli.patches_recon_tensor(high_resolution_list,
                                         [1, image_l.shape[0], image_l.shape[1], 1],
                                         [FLAGS.height, FLAGS.width],
                                         [FLAGS.stride_v, FLAGS.stride_h],
                                         [FLAGS.valid_h, FLAGS.valid_w],
-                                        [FLAGS.valid_y, FLAGS.valid_x])
+                                        # [FLAGS.valid_y, FLAGS.valid_x])
+                                        [0, 0])
     return image_h
 
 def main(argv):
     assert(len(argv) >= 2), 'Invalid command'
     net, sess, summary, summary_writer, saver = init()
     if RESTORE:
-        saver.restore(sess, "./supernet-"+TEST_NAME+"-"+str(FLAGS.max_step))
+        saver.restore(sess, "./supernet-"+TEST_NAME+"-"+str(1000))
     if argv[1] == "train":
         train_net(net, sess, summary, summary_writer, saver, TRAIN_IDS)
     if argv[1] == "test":

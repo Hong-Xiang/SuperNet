@@ -1,0 +1,4 @@
+*.pyc
+supernet-*
+summary/*
+checkpoint
