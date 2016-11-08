@@ -14,13 +14,13 @@ import mypylib.tensor as mplt
 
 FLAGS = tf.app.flags.FLAGS
 
-USE_FLICKR_DATA = False
+USE_FLICKR_DATA = True
 if USE_FLICKR_DATA:
     DATA_PATH = "/home/hongxwing/Workspace/Datas/flickr25k_gray_npy/"
 else:
-    DATA_PATH = "/home/hongxwing/Workspace/Datas/SinogramData/"
+    DATA_PATH = "/home/hongxwing/Workspace/Datas/SPECT_oldstyle/"
 
-TEST_NAME = "crop_test_deep_conv_sino"
+TEST_NAME = "TEST_RERUN"
 
 # CROPP_FILE = False
 # if CROPP_FILE:
@@ -42,8 +42,8 @@ if USE_FLICKR_DATA:
     NTRAIN = 20000
     NTEST = 5000
 else:
-    NTRAIN = 200
-    NTEST = 50
+    NTRAIN = 2000
+    NTEST = 500
 
 
 
@@ -70,8 +70,8 @@ def define_flags():
         flag.DEFINE_string("prefix_h", "imh", "Prefix of high resolution data filename.")
         flag.DEFINE_string("prefix_l", "iml", "Prefix of low resoution data filename.")
     else:
-        flag.DEFINE_string("prefix_h", "sinogram_high_", "Prefix of high resolution data filename.")
-        flag.DEFINE_string("prefix_l", "sinogram_low_", "Prefix of low resoution data filename.")
+        flag.DEFINE_string("prefix_h", "sino_high_", "Prefix of high resolution data filename.")
+        flag.DEFINE_string("prefix_l", "sino_low_", "Prefix of low resoution data filename.")
     # flag.DEFINE_string("prefix_h","patch_high_","Prefix of high resolution data filename.")
     # flag.DEFINE_string("prefix_l","patch_low_","Prefix of low resoution data filename.")
     flag.DEFINE_string("suffix", ".npy", "Suffix of data filename.")
@@ -115,12 +115,15 @@ def init():
     """
     initialization of Net, Session, Summary, SummaryWriter, Saver
     """
+    print('init - SuperNet - start')
     net = SuperNet()
+    print('init - SuperNet - finished.')
     summary = tf.merge_all_summaries()
     sess = tf.Session()
     init_op = tf.initialize_all_variables()
     saver = tf.train.Saver(tf.all_variables())
     summary_writer = tf.train.SummaryWriter(FLAGS.summaries_dir, sess.graph)
+    print('init definition finished.')
     sess.run(init_op)
     return net, sess, summary, summary_writer, saver
 
@@ -151,11 +154,12 @@ def test_net(net, sess, id_list_in):
     return loss_ave
 
 def train_net(net, sess, summary, summary_writer, saver, id_list_in):
+    print('train_net called.')
     id_list = id_list_in[:]
     random.shuffle(id_list)
     file_high = [os.path.join(FLAGS.data_dir, FLAGS.prefix_h + str(id) + FLAGS.suffix) for id in id_list]
     file_low = [os.path.join(FLAGS.data_dir, FLAGS.prefix_l + str(id) + FLAGS.suffix) for id in id_list]
-   
+    print('Creating DataSet Object...')
     data = DataSet(file_high, file_low,
                    [FLAGS.height, FLAGS.width],
                    [FLAGS.stride_v, FLAGS.stride_h],
@@ -164,6 +168,7 @@ def train_net(net, sess, summary, summary_writer, saver, id_list_in):
                    new_crop_method=True)
     # data = DataSet(FLAGS.data_dir, FLAGS.prefix_h, FLAGS.prefix_l, list(xrange(0,4)), FLAGS.suffix)
     # pg = data.batch_generator(FLAGS.batch_size)
+    print('Start Trainning steps.')
     for i in xrange(FLAGS.max_step):
         [high_res_data, low_res_data] = data.next_batch(FLAGS.batch_size)
         # [high_res_data, low_res_data] = pg.next()
@@ -249,6 +254,7 @@ def infer(net, sess, image_l):
     return image_h
 
 def main(argv):
+    print('Running super net.')
     assert(len(argv) >= 2), 'Invalid command'
     net, sess, summary, summary_writer, saver = init()
     if RESTORE:
